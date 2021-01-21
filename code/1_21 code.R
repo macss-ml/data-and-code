@@ -1,7 +1,7 @@
 # Introduction to Machine Learning (33002)
 # Philip Waggoner (https://pdwaggoner.github.io/)
 
-# Code for class
+# Code for class (logistic regression and LDA; classification pt 2)
 
 # load some libraries
 library(tidyverse)
