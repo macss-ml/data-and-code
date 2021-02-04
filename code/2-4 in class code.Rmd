@@ -4,10 +4,6 @@ author: "Philip Waggoner, MACS 30100 <br /> University of Chicago"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(eval = FALSE, echo = TRUE, message = FALSE, warning = FALSE)
-```
-
 # Overview
 
 Let's fit some non-linear models, but based on some of the examples and data from the book.
