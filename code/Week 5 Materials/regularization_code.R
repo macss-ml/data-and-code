@@ -1,4 +1,5 @@
-# regularization in regression application
+# Regularization in regression problems
+# Introduction to Machine Learning (33002)
 # Philip Waggoner, pdwaggoner@uchicago.edu
 
 # load libs
