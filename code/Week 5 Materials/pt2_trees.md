@@ -1,8 +1,3 @@
----
-title: "Regression Trees"
-output: pdf_document
----
-
 # Regression Trees
 
 For this first part, we will fit a basic regression tree using the `AmesHousing` data (canned; no need to load externally). We will also use the `rpart` package to fit the tree predicting home `Sale_Price`, and then the `rpart.plot` package to create a nice, relatively clean plot. As a side exercise, consider trying to clean up and customize the `rpart.plot()` we make below. Hint: start by running `?rpart.plot` to see some options. Consider also Googling to see what others have done with the package. 
