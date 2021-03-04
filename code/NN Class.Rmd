@@ -1,0 +1,206 @@
+---
+title: "Neural Networks: Basics & External Engines"
+author: "Philip Waggoner"
+date: " "
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+Our focus today is mostly application, while also setting the stage for next week, which combines unsupervised learning with a neural network (and deep learning) architecture to learn from data. Thus, we will cover some foundational concepts today in a more interactive way.
+
+  1. Overview external ML engines and APIs, and why they're especially useful for NN
+  2. Overview neural network architecture 
+  3. Application with Congress data
+
+## External ML Engines
+
+ML engines are sets of tools that include repositories of source code for many model architectures, allowing computational power and ability to extend far beyond a single package or basic, local, statistical programming. 
+
+Via some entry point, e.g., an API, the engines offer access to this repository of models, allowing for development and implementation of virtually any machine learning model, locally from anywhere in the world. 
+
+  1. Tensorflow and Keras (*covered today*)
+  2. h2o (*covered next week*)
+
+## Neural Network Architecture
+
+A neural network is interested in building a model that emulates the human brain's approach to information processing: 
+
+  1. receive raw information 
+  2. Process that raw information
+  3. Iteratively revisit and consider the data to look for trends, and thus learn
+  4. Offer a conclusion based on how the information was processed
+
+##### (Major) Hyperparameters
+
+  1. Hidden layers
+  2. Neurons in the hidden layers
+  3. Activation function
+  4. Learning rate
+  5. Epochs
+  6. Stopping
+
+## Application with Congress Data
+
+Artificial neural network application via Keras/Tensorflow.
+
+```{r eval = FALSE}
+# load some libraries
+library(keras)
+library(tensorflow)
+library(tidyverse)
+library(patchwork)
+library(skimr)
+library(naniar)
+library(recipes)
+library(here)
+library(tictoc)
+
+#install_keras() # might need this if you're new to keras/TF
+```
+
+Now, let's load the Congress data, and hang on to only a few useful features. Then, let's take a look.
+
+```{r eval = FALSE}
+# load the data
+cong <- read_csv(here("data", "congress_109_110.csv"))
+
+data <- cong %>% 
+  select(elected, votepct, dwnom1, seniority, les) %>% 
+  glimpse()
+
+skim(data) 
+```
+
+Remember at the beginning of the quarter, we learned about feature engineering for missing data? Well, these data have some missingness, though not a ton as we just saw. Let's revisit some of those techniques for exploring and then addressing missingness to remind ourselves (and practice) best practices in writing good code for modeling applications. Let's start with the pattern of missingness.
+
+```{r eval = FALSE}
+data %>%
+  gg_miss_upset()
+```
+
+We now have a sense of the pattern. Let's impute using a couple techniques: `step_meanimpute()` and `step_knnimpute()`.
+
+```{r eval = FALSE}
+congress_recipe <- recipe(les ~ elected + votepct + dwnom1 + seniority, 
+                          data = data) %>%
+  step_meanimpute(dwnom1) %>% # impute using feature mean
+  step_knnimpute(all_predictors()) # use kNN for ALL others: elected, seniority, votepct
+
+congress_imputed <- prep(congress_recipe) %>% 
+  juice()
+```
+
+How is everything looking?
+
+```{r eval = FALSE}
+summary(data$dwnom1)
+summary(congress_imputed$dwnom1)
+
+summary(data$elected)
+summary(congress_imputed$elected) 
+
+summary(data$seniority)
+summary(congress_imputed$seniority) 
+
+summary(data$votepct)
+summary(congress_imputed$votepct)
+```
+
+With our cleaned data, let's split the data.
+
+```{r eval = FALSE}
+set.seed(1234)
+
+# split data (80/20)
+congress_imputed_split <- sample(1:nrow(congress_imputed), 0.8 * nrow(congress_imputed))
+train <- congress_imputed[congress_imputed_split, ]
+test <- congress_imputed[-congress_imputed_split, ]
+
+# standardize
+train <- train %>% 
+  scale() 
+
+## now for the test set
+train_mean <- attr(train, "scaled:center") 
+train_sd <- attr(train, "scaled:scale")
+test <- scale(test, center = train_mean, scale = train_sd)
+
+# separate response from input features to fit the model
+train_labels <- train[ , "les"]
+train_data <- train[ , 1:4]
+
+test_labels <- test[ , "les"]
+test_data <- test[ , 1:4]
+```
+
+Now, let's start building a basic neural network via Keras/TF. 
+
+```{r eval = FALSE}
+# construct the model
+model <- keras_model_sequential() 
+
+model %>% 
+  layer_dense(units = 2, input_shape = dim(train_data)[2]) %>%
+  layer_dense(units = 1) %>% 
+  compile(
+    loss = "mse",
+    optimizer = optimizer_rmsprop(),
+    metrics = "mae")
+
+epochs <- 500
+
+# fit the model (be sure to store the results for visualization)
+{
+  tic()
+out <- model %>% fit(
+  train_data,
+  train_labels,
+  epochs = epochs,
+  validation_split = 0.2,
+  verbose = FALSE
+); out 
+toc()} # ~15 seconds
+```
+
+We've built and explored our model a bit. Now, let's plot in a couple ways. First, the training process.
+
+```{r eval = FALSE}
+plot(out) +
+  theme_minimal() +
+  labs(title = "Predicting LES in Congress with Neural Network",
+       x = "Epoch",
+       y = "Metric") 
+```
+
+Second, let's make predictions on the test set, and see if our predictions were similar to our training labels.
+
+```{r eval = FALSE}
+# predictions
+test_predictions <- model %>% 
+  predict(test_data)
+
+# compare with LES from training set
+preds <- qplot(test_predictions, xlab = "Predicted LES")
+peak_preds <- ggplot_build(preds)[[1]][[1]]
+x1 <- mean(unlist(peak_preds[which.max(peak_preds$ymax), c("xmin", "xmax")]))
+preds <- preds + 
+  geom_vline(xintercept=x1, col="red", lty=2, lwd=1) + 
+  geom_vline(xintercept=0, col="blue", lty=1, lwd=1) + 
+  theme_minimal()
+
+trained <- qplot(train_labels, xlab = "Training LES")
+peak_tr <- ggplot_build(trained)[[1]][[1]]
+x2 <- mean(unlist(peak_tr[which.max(peak_tr$ymax), c("xmin", "xmax")]))
+trained <- trained + 
+  geom_vline(xintercept=x2, col="red", lty=2, lwd=1) + 
+  geom_vline(xintercept=0, col="blue", lty=1, lwd=1) + 
+  theme_minimal()
+
+trained + preds +
+  plot_annotation(title = "Comparing Train and Predicted LES")
+```
